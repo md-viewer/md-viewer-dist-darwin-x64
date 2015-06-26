@@ -1,5 +1,5 @@
 {
   "name":        "md-viewer",
   "productName": "md-viewer",
-  "main":        "main.js"
+  "main":        "main/main.js"
 }

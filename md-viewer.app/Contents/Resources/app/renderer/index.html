@@ -1,20 +1,18 @@
 <!-- Licensed under the Apache License. See footer for details. -->
 
-<h1>mb-viewer</h1>
-
-<p>A stand-alone desktop Markdown viewer
-
-<p>For more information, see the source repo at GitHub:
-<a
-  href    = "javascript:void(0)"
-  onclick = "mdViewer_openLink('https://github.com/pmuellr/md-viewer')"
-  >github.com/pmuellr/md-viewer</a>
-
-<h2>versions</h2>
-<table>
-  <tr><td>application <td>0.9.4
-  <tr><td>electron    <td>0.27.1
-</table>
+<html>
+  <head>
+    <link rel="stylesheet" href="css/md-viewer.css">
+    <link rel="stylesheet" href="css/github-markdown.css">
+    <link rel="stylesheet" href="node_modules/highlight.js/styles/github.css">
+  </head>
+  <body>
+    <div id="content" class="markdown-body"></div>
+    <script>
+      require("./modules/renderer.js")
+    </script>
+  </body>
+</html>
 
 <!--
 //==============================================================================

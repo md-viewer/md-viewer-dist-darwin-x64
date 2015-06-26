@@ -2,22 +2,20 @@
 
 "use strict"
 
-const app           = require("app")
-const Menu          = require("menu")
-const Dialog        = require("dialog")
-const BrowserWindow = require("browser-window")
+const app    = require("app")
+const Dialog = require("dialog")
 
-const main  = require("./main")
-const prefs = require("./prefs")
+const main = require("./main")
 
 //------------------------------------------------------------------------------
-exports.load = load
-
-let ZoomLevel = 0
+function setExports() {
+  exports.template     = getTemplate()
+  exports.HandlerClass = HandlerClass
+}
 
 //------------------------------------------------------------------------------
-function load(mainWindow) {
-  const template = [
+function getTemplate() {
+  return [
     {
       label: "md-viewer",
       submenu: [
@@ -29,16 +27,16 @@ function load(mainWindow) {
         { label: "Hide Others",    accelerator: "Command+Shift+H", selector: "hideOtherApplications:" },
         { label: "Show All",                                       selector: "unhideAllApplications:" },
         { type:  "separator" },
-        { label: "Quit",           accelerator: "Command+Q",       click: quit }
+        { label: "Quit",           accelerator: "Command+Q",       on_click: "onQuit" }
       ]
     },
     {
       label: "File",
       submenu: [
-        { label: "Open File...", accelerator: "Command+O", click: openFileMenu },
+        { label: "Open File...", accelerator: "Command+O", on_click: "onOpenFileMenu" },
         { label: "Close",        accelerator: "Command+W", selector: "performClose:" },
         { type:  "separator" },
-        { label: "Print...",     accelerator: "Command+P", click: print }
+        { label: "Print...",     accelerator: "Command+P", on_click: "onPrint" }
       ]
     },
     {
@@ -51,12 +49,12 @@ function load(mainWindow) {
     {
       label: "View",
       submenu: [
-        { label: "Reload",          accelerator: "Command+R",     click: reload },
-        { label: "Enter Fullscreen",                              click: enterFullscreen },
-        { label: "Actual Size",     accelerator: "Command+0",     click: zoomActualSize },
-        { label: "Zoom In",         accelerator: "Command+=",     click: zoomIn },
-        { label: "Zoom Out",        accelerator: "Command+-",     click: zoomOut },
-        { label: "Toggle DevTools", accelerator: "Alt+Command+I", click: toggleDevTools }
+        { label: "Reload",          accelerator: "Command+R",     on_click: "onReload" },
+        { label: "Enter Fullscreen",                              on_click: "onEnterFullscreen" },
+        { label: "Actual Size",     accelerator: "Command+0",     on_click: "onZoomActualSize" },
+        { label: "Zoom In",         accelerator: "Command+=",     on_click: "onZoomIn" },
+        { label: "Zoom Out",        accelerator: "Command+-",     on_click: "onZoomOut" },
+        { label: "Toggle DevTools", accelerator: "Alt+Command+I", on_click: "onToggleDevTools" }
       ]
     },
     {
@@ -69,12 +67,18 @@ function load(mainWindow) {
       ]
     }
   ]
+}
 
-  const menu = Menu.buildFromTemplate(template)
-  Menu.setApplicationMenu(menu)
+//------------------------------------------------------------------------------
+class HandlerClass {
 
   //-----------------------------------
-  function openFileMenu() {
+  constructor(menu) {
+    this.menu = menu
+  }
+
+  //-----------------------------------
+  onOpenFileMenu() {
     const options = {
       title:        "Open Markdown File",
       defaultPath:  process.env.HOME,
@@ -84,90 +88,95 @@ function load(mainWindow) {
       properties: [ "openFile" ]
     }
 
-    const mWindow = getMainWindow(mainWindow)
+    if (this.menu.browserWindow) {
+      Dialog.showOpenDialog(this.menu.browserWindow, options, onOpenFileCB)
+    }
+    else {
+      Dialog.showOpenDialog(options, onOpenFileCB)
+    }
 
-    Dialog.showOpenDialog(mWindow, options, openFileCB)
+  //-----------------------------------
+    function onOpenFileCB(fileNames) {
+      if (!fileNames) return
+
+      fileNames.forEach(function(fileName) {
+        main.openFile(fileName)
+      })
+    }
   }
 
   //-----------------------------------
-  function openFileCB(fileNames) {
-    if (!fileNames) return
-
-    openFiles(fileNames)
-  }
-
-  //-----------------------------------
-  function quit() {
+  onQuit() {
     app.quit()
   }
 
   //-----------------------------------
-  function print() {
-    getMainWindow(mainWindow).print()
+  onPrint() {
+    if (!this.menu.browserWindow) return
+
+    this.menu.browserWindow.print()
   }
 
   //-----------------------------------
-  function reload() {
+  onReload() {
+    if (!this.menu.browserWindow) return
+
     const script = "mdViewer_reload()"
-    getMainWindow(mainWindow).webContents.executeJavaScript(script)
+    this.menu.browserWindow.webContents.executeJavaScript(script)
   }
 
   //-----------------------------------
-  function enterFullscreen() {
-    getMainWindow(mainWindow).setFullScreen(true)
+  onEnterFullscreen() {
+    if (!this.menu.browserWindow) return
+
+    this.menu.browserWindow.setFullScreen(true)
   }
 
   //-----------------------------------
-  function toggleDevTools() {
-    getMainWindow(mainWindow).toggleDevTools()
+  onToggleDevTools() {
+    if (!this.menu.browserWindow) return
+
+    this.menu.browserWindow.toggleDevTools()
   }
 
   //-----------------------------------
-  function zoomActualSize() {
-    ZoomLevel = 0
-    setZoomLevel(mainWindow, ZoomLevel)
+  onZoomActualSize() {
+    setZoomLevel(this.menu.viewer, 0)
   }
 
   //-----------------------------------
-  function zoomIn() {
-    ZoomLevel++
-    setZoomLevel(mainWindow, ZoomLevel)
+  onZoomIn() {
+    const zoomLevel = getZoomLevel(this.menu.viewer)
+    setZoomLevel(this.menu.viewer, zoomLevel + 1)
   }
 
   //-----------------------------------
-  function zoomOut() {
-    ZoomLevel--
-    setZoomLevel(mainWindow, ZoomLevel)
+  onZoomOut() {
+    const zoomLevel = getZoomLevel(this.menu.viewer)
+    setZoomLevel(this.menu.viewer, zoomLevel - 1)
   }
 }
 
 //------------------------------------------------------------------------------
-function setZoomLevel(mainWindow, zoomLevel) {
-  mainWindow = getMainWindow(mainWindow)
+function getZoomLevel(viewer) {
+  if (!viewer) return 0
 
-  const script = "mdViewer_webFrame.setZoomLevel(" + zoomLevel + ")"
-  mainWindow.webContents.executeJavaScript(script)
-
-  main.prefs.window_zoomLevel = zoomLevel
-  prefs.store(main.prefs)
+  return viewer.zoomLevel
 }
 
 //------------------------------------------------------------------------------
-function getMainWindow(mainWindow) {
-  if (process.platform != "darwin") return mainWindow
+function setZoomLevel(viewer, zoomLevel) {
+  if (!viewer) return
 
-  const focusedWindow = BrowserWindow.getFocusedWindow()
-  if (focusedWindow) return focusedWindow
+  viewer.runScript("mdViewer_webFrame.setZoomLevel(" + zoomLevel + ")")
+  viewer.zoomLevel = zoomLevel
 
-  return mainWindow
+  viewer.prefs.data.window_zoomLevel = zoomLevel
+  viewer.prefs.store()
 }
 
 //------------------------------------------------------------------------------
-function openFiles(fileNames) {
-  fileNames.forEach(function(fileName) {
-    main.openFile(fileName)
-  })
-}
+setExports()
 
 //------------------------------------------------------------------------------
 // Licensed under the Apache License, Version 2.0 (the "License")
